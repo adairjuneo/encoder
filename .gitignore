@@ -1,0 +1,7 @@
+node_modules
+.env
+_tmp/
+_input/
+_upload/
+build/
+dist/
