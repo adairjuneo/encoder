@@ -2,7 +2,7 @@
   "name": "encoder",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/program.js",
   "scripts": {
     "manual": "tsx --env-file=.env src/manual.ts",
     "lint": "npx @biomejs/biome lint --write",
