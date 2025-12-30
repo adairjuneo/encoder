@@ -170,6 +170,7 @@ export const encode = (params: EncodeParams) =>
         .addOption('-hide_banner', '-y')
         .addOption('-vn') // Remove Vídeo
         .addOption('-sn') // Remove Legendas
+
         .addOption('-map', '0:a:0') // Pega a primeira trilha de áudio
         // Configuração de Áudio AAC
         .addOption('-c:a', 'aac')
