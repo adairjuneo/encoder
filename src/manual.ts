@@ -1,6 +1,3 @@
-import { NodeFileSystem, NodeRuntime } from '@effect/platform-node';
-import { Effect } from 'effect';
-import { encode } from '@/effects/encode.effect';
 import { env } from '@/env';
 
 const url =
@@ -9,13 +6,4 @@ const environment = env.NODE_ENV;
 
 console.info(
   `Worker Initiated on ${environment} ${new Date(Date.now()).toISOString()}`,
-);
-
-encode({
-  inputUrl: url,
-  externalId: `manual-${new Date(Date.now()).toISOString()}`,
-}).pipe(
-  Effect.provide(NodeFileSystem.layer),
-  Effect.withSpan('/encode'),
-  NodeRuntime.runMain,
 );
