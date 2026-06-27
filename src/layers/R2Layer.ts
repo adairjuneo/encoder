@@ -1,7 +1,6 @@
 import { Context, Effect, Layer } from "effect"
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { Upload } from "@aws-sdk/lib-storage"
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import fs from "node:fs"
 import { ConfigService } from "../config/index.js"
 import { R2UploadError, R2PresignError } from "../errors/index.js"
@@ -58,15 +57,7 @@ export const R2ServiceLive = Layer.effect(
         }).pipe(Effect.asVoid),
 
       getPresignedUrl: (key) =>
-        Effect.tryPromise({
-          try: () =>
-            getSignedUrl(
-              client,
-              new PutObjectCommand({ Bucket: config.R2_BUCKET_NAME, Key: key }),
-              { expiresIn: 3600 },
-            ),
-          catch: (e) => new R2PresignError({ key, cause: e }),
-        }).pipe(Effect.map(() => `${config.R2_PUBLIC_BASE_URL}/${key}`)),
+        Effect.succeed(`${config.R2_PUBLIC_BASE_URL}/${key}`),
     }
   }),
 )

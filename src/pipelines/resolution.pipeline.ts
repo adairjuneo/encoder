@@ -9,7 +9,7 @@ import { FFmpegError, R2UploadError, SNSPublishError } from "../errors/index.js"
 import { watchDirectory } from "../utils/chokidar-stream.js"
 import { parseProgressLine } from "../utils/ffmpeg-progress.js"
 import type { Resolution, ResolutionProgress, JobState } from "../types/index.js"
-import { RESOLUTION_CONFIGS } from "../types/index.js"
+import { RESOLUTION_CONFIGS, RESOLUTIONS } from "../types/index.js"
 
 export function transcodeResolution(
   resolution: Resolution,
@@ -35,7 +35,6 @@ export function transcodeResolution(
 
     let segmentsUploaded = 0
     let segmentsTotal = 0
-    let transcodePct = 0
 
     // Fork chokidar watcher → upload each new .ts segment to R2 as it appears.
     const watchFiber = yield* Effect.forkDaemon(
@@ -93,15 +92,6 @@ export function transcodeResolution(
               stderr: result.stderr,
             })
           }
-          // Parse final progress from stderr output.
-          const lines = (result.stderr ?? "").split("\n")
-          for (const line of lines.reverse()) {
-            const pct = parseProgressLine(line, jobState.videoDurationSec)
-            if (pct !== null) {
-              transcodePct = pct
-              break
-            }
-          }
         }),
       catch: (e: unknown) => {
         const err = e as { exitCode?: number | null; stderr?: string }
@@ -128,7 +118,7 @@ export function transcodeResolution(
       Object.values(jobState.progress).reduce(
         (sum, p) => sum + p.transcodePct,
         0,
-      ) / 3,
+      ) / RESOLUTIONS.length,
     )
     yield* sns.publish({
       type: "job.progress",
@@ -139,9 +129,6 @@ export function transcodeResolution(
       overallPct,
       timestamp: new Date().toISOString(),
     })
-
-    // suppress unused variable warning
-    void transcodePct
 
     return {
       status: "done",
