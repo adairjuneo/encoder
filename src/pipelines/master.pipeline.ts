@@ -9,6 +9,7 @@ import { CostService } from "../layers/CostLayer.js"
 import { FFmpegService } from "../layers/FFmpegLayer.js"
 import { ConfigService } from "../config/index.js"
 import { forkSQSHeartbeat } from "../sqs/heartbeat.js"
+import { HeartbeatError } from "../errors/index.js"
 import { transcodeResolution } from "./resolution.pipeline.js"
 import { extractThumbnail } from "./thumbnail.pipeline.js"
 import { probeVideoDuration } from "../utils/ffmpeg-progress.js"
@@ -42,6 +43,9 @@ export function transcodeJob(
   payload:       JobPayload,
   receiptHandle: string,
 ): Effect.Effect<OutputManifest, never, AppDeps> {
+  // Mutable capture so catchAllCause can interrupt the heartbeat fiber on failure
+  let heartbeatFiber: Fiber.RuntimeFiber<void, HeartbeatError> | null = null
+
   return Effect.gen(function* () {
     const config  = yield* ConfigService
     const sqs     = yield* SQSService
@@ -83,11 +87,12 @@ export function transcodeJob(
     })
 
     // Fork heartbeat fiber for the duration of the job.
-    const heartbeatFiber = yield* forkSQSHeartbeat(
+    const fiber = yield* forkSQSHeartbeat(
       receiptHandle,
       config.SQS_VISIBILITY_TIMEOUT_SEC,
       config.SQS_HEARTBEAT_INTERVAL_MS,
     )
+    heartbeatFiber = fiber  // capture for failure handler
 
     // Process resolutions in batches of RESOLUTION_BATCH_SIZE.
     const batches: Resolution[][] = Arr.chunksOf(RESOLUTIONS, config.RESOLUTION_BATCH_SIZE)
@@ -162,13 +167,18 @@ export function transcodeJob(
     })
 
     // Interrupt heartbeat and clean up temp files.
-    yield* Fiber.interrupt(heartbeatFiber).pipe(Effect.asVoid)
+    yield* Fiber.interrupt(fiber).pipe(Effect.asVoid)
     yield* Effect.promise(() => fs.rm(workDir, { recursive: true, force: true }))
 
     return manifest
   }).pipe(
     Effect.catchAllCause((cause) =>
       Effect.gen(function* () {
+        // Interrupt heartbeat fiber if it was started before the failure
+        if (heartbeatFiber !== null) {
+          yield* Fiber.interrupt(heartbeatFiber).pipe(Effect.asVoid, Effect.orElseSucceed(() => undefined))
+        }
+
         const config     = yield* ConfigService
         const sns        = yield* SNSService
         const ec2        = yield* EC2MetadataService
