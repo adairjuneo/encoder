@@ -1,5 +1,5 @@
-import { Effect, Stream } from "effect"
-import chokidar from "chokidar"
+import chokidar from 'chokidar';
+import { Effect, Stream } from 'effect';
 
 // Returns a Stream that emits the absolute path of each .ts segment file
 // added to the watched directory. The stream does not error — chokidar
@@ -12,17 +12,17 @@ export function watchDirectory(dir: string): Stream.Stream<string> {
         persistent: true,
         ignoreInitial: true,
         awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
-      })
+      });
 
-      watcher.on("add", (filePath: string) => {
-        if (filePath.endsWith(".ts")) {
-          void emit.single(filePath)
+      watcher.on('add', (filePath: string) => {
+        if (filePath.endsWith('.ts')) {
+          void emit.single(filePath);
         }
-      })
+      });
 
       yield* Effect.addFinalizer((_exit) =>
         Effect.promise(() => watcher.close()),
-      )
+      );
     }),
-  )
+  );
 }

@@ -1,17 +1,20 @@
-import { Context, Effect, Layer } from "effect"
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
-import { Upload } from "@aws-sdk/lib-storage"
-import fs from "node:fs"
-import { ConfigService } from "../config/index.js"
-import { R2UploadError, R2PresignError } from "../errors/index.js"
+import fs from 'node:fs';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
+import { Context, Effect, Layer } from 'effect';
+import { ConfigService } from '../config/index.js';
+import { type R2PresignError, R2UploadError } from '../errors/index.js';
 
 export interface R2ServiceShape {
-  uploadFile(key: string, localPath: string): Effect.Effect<void, R2UploadError>
-  uploadBuffer(key: string, data: Buffer): Effect.Effect<void, R2UploadError>
-  getPresignedUrl(key: string): Effect.Effect<string, R2PresignError>
+  uploadFile(
+    key: string,
+    localPath: string,
+  ): Effect.Effect<void, R2UploadError>;
+  uploadBuffer(key: string, data: Buffer): Effect.Effect<void, R2UploadError>;
+  getPresignedUrl(key: string): Effect.Effect<string, R2PresignError>;
 }
 
-export class R2Service extends Context.Tag("R2Service")<
+export class R2Service extends Context.Tag('R2Service')<
   R2Service,
   R2ServiceShape
 >() {}
@@ -19,26 +22,26 @@ export class R2Service extends Context.Tag("R2Service")<
 export const R2ServiceLive = Layer.effect(
   R2Service,
   Effect.gen(function* () {
-    const config = yield* ConfigService
+    const config = yield* ConfigService;
     const client = new S3Client({
-      region: "auto",
+      region: 'auto',
       endpoint: `https://${config.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
       credentials: {
         accessKeyId: config.R2_ACCESS_KEY_ID,
         secretAccessKey: config.R2_SECRET_ACCESS_KEY,
       },
-    })
+    });
 
     return {
       uploadFile: (key, localPath) =>
         Effect.tryPromise({
           try: async () => {
-            const stream = fs.createReadStream(localPath)
+            const stream = fs.createReadStream(localPath);
             const upload = new Upload({
               client,
               params: { Bucket: config.R2_BUCKET_NAME, Key: key, Body: stream },
-            })
-            await upload.done()
+            });
+            await upload.done();
           },
           catch: (e) => new R2UploadError({ key, cause: e }),
         }),
@@ -58,9 +61,9 @@ export const R2ServiceLive = Layer.effect(
 
       getPresignedUrl: (key) =>
         Effect.succeed(`${config.R2_PUBLIC_BASE_URL}/${key}`),
-    }
+    };
   }),
-)
+);
 
 export function R2ServiceStub(
   uploads: Map<string, Buffer>,
@@ -70,15 +73,14 @@ export function R2ServiceStub(
       Effect.tryPromise({
         try: () =>
           fs.promises.readFile(localPath).then((buf) => {
-            uploads.set(key, buf)
+            uploads.set(key, buf);
           }),
         catch: (e) => new R2UploadError({ key, cause: e }),
       }),
     uploadBuffer: (key, data) =>
       Effect.sync(() => {
-        uploads.set(key, data)
+        uploads.set(key, data);
       }),
-    getPresignedUrl: (key) =>
-      Effect.succeed(`https://r2-stub.local/${key}`),
-  })
+    getPresignedUrl: (key) => Effect.succeed(`https://r2-stub.local/${key}`),
+  });
 }

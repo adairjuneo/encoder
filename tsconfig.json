@@ -16,5 +16,13 @@
       "@/*": ["./src/*"]
     }
   },
-  "exclude": ["node_modules", "build", "dist", "_tmp", "_upload", "**/*.test.ts", "vitest.config.ts"]
+  "exclude": [
+    "node_modules",
+    "build",
+    "dist",
+    "_tmp",
+    "_upload",
+    "**/*.test.ts",
+    "vitest.config.ts"
+  ]
 }
