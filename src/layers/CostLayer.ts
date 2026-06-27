@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect"
-import { EC2Client, DescribeSpotPriceHistoryCommand } from "@aws-sdk/client-ec2"
+import { EC2Client, DescribeSpotPriceHistoryCommand, _InstanceType } from "@aws-sdk/client-ec2"
 import { ConfigService } from "../config/index.js"
 import { CostCalculationError } from "../errors/index.js"
 import type { JobCostReport } from "../types/index.js"
@@ -28,7 +28,7 @@ export const CostServiceLive = Layer.effect(
         Effect.tryPromise({
           try: async () => {
             const res = await client.send(new DescribeSpotPriceHistoryCommand({
-              InstanceTypes:       [instanceType as any],
+              InstanceTypes:       [instanceType as _InstanceType],
               ProductDescriptions: ["Linux/UNIX"],
               StartTime:           startedAt,
               EndTime:             endedAt,
