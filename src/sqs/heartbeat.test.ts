@@ -20,6 +20,7 @@ describe("forkSQSHeartbeat", () => {
     const fiber = await Effect.runPromise(
       Effect.gen(function* () {
         const f = yield* forkSQSHeartbeat("rh-test", 300, 100)
+        // TestContext.TestContext (Effect v3 test clock layer) would allow TestClock.adjust here — use it if migrated
         yield* Effect.sleep(Duration.millis(250))
         return f
       }).pipe(

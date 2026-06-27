@@ -16,7 +16,8 @@ export function forkSQSHeartbeat(
       Effect.mapError((e) => new HeartbeatError({ cause: e }))
     )
   }).pipe(
-    Effect.repeat(Schedule.spaced(Duration.millis(intervalMs)))
+    Effect.repeat(Schedule.spaced(Duration.millis(intervalMs))),
+    Effect.asVoid
   )
 
   return Effect.forkDaemon(heartbeat)

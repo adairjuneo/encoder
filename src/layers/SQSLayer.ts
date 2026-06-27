@@ -73,7 +73,7 @@ export const SQSServiceLive = Layer.effect(
   })
 )
 
-interface StubOpts {
+export interface StubOpts {
   messages: SQSMessage[]
 }
 
