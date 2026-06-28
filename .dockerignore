@@ -3,7 +3,5 @@ build
 .git
 .env
 .env.*
-src
 test-fixtures
-*.test.ts
 .docs
