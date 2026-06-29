@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { Array as Arr, Effect, Fiber } from 'effect';
+import { Array as Arr, Cause, Effect, Fiber } from 'effect';
 import { ConfigService } from '../config/index.js';
 import type { HeartbeatError } from '../errors/index.js';
 import { CostService } from '../layers/CostLayer.js';
@@ -157,9 +157,6 @@ export function transcodeJob(
       endedAt,
     );
 
-    // Delete SQS message (success path only).
-    yield* sqs.deleteMessage(receiptHandle);
-
     const manifest: OutputManifest = {
       masterPlaylistUrl: `${config.R2_PUBLIC_BASE_URL}/${masterKey}`,
       thumbnailUrl: `${config.R2_PUBLIC_BASE_URL}/${thumbnailKey}`,
@@ -179,6 +176,9 @@ export function transcodeJob(
       callbackData: payload.callbackData ?? null,
     });
 
+    // Delete SQS message only after job.completed SNS publish succeeds.
+    yield* sqs.deleteMessage(receiptHandle);
+
     // Interrupt heartbeat and clean up temp files.
     yield* Fiber.interrupt(fiber).pipe(Effect.asVoid);
     yield* Effect.promise(() =>
@@ -189,32 +189,33 @@ export function transcodeJob(
   }).pipe(
     Effect.catchAllCause((cause) =>
       Effect.gen(function* () {
-        // Interrupt heartbeat fiber if it was started before the failure
+        // Interrupt heartbeat fiber if it was started before the failure.
         if (heartbeatFiber !== null) {
-          yield* Fiber.interrupt(heartbeatFiber).pipe(
-            Effect.asVoid,
-            Effect.orElseSucceed(() => undefined),
-          );
+          yield* Fiber.interrupt(heartbeatFiber).pipe(Effect.asVoid);
         }
 
         const config = yield* ConfigService;
-        const sns = yield* SNSService;
-        const ec2 = yield* EC2MetadataService;
         const workDir = path.join(config.TEMP_DIR, payload.id);
-        const instanceId = yield* ec2
-          .getInstanceId()
-          .pipe(Effect.orElseSucceed(() => 'unknown'));
 
-        yield* sns
-          .publish({
-            type: 'job.failed',
-            jobId: payload.id,
-            instanceId,
-            error: { code: 'TRANSCODE_ERROR', message: String(cause) },
-            timestamp: new Date().toISOString(),
-            callbackData: payload.callbackData ?? null,
-          })
-          .pipe(Effect.orElseSucceed(() => undefined));
+        // Do not publish job.failed on external interruption (e.g. SIGTERM / timeout).
+        if (!Cause.isInterrupted(cause)) {
+          const sns = yield* SNSService;
+          const ec2 = yield* EC2MetadataService;
+          const instanceId = yield* ec2
+            .getInstanceId()
+            .pipe(Effect.orElseSucceed(() => 'unknown'));
+
+          yield* sns
+            .publish({
+              type: 'job.failed',
+              jobId: payload.id,
+              instanceId,
+              error: { code: 'TRANSCODE_ERROR', message: String(cause) },
+              timestamp: new Date().toISOString(),
+              callbackData: payload.callbackData ?? null,
+            })
+            .pipe(Effect.orElseSucceed(() => undefined));
+        }
 
         yield* Effect.promise(() =>
           fs.rm(workDir, { recursive: true, force: true }),

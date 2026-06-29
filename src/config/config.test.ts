@@ -41,4 +41,15 @@ describe('ConfigService', () => {
 
     process.env.AWS_REGION = saved;
   });
+
+  it('throws ConfigError when NODE_ENV is not a valid enum value', async () => {
+    const saved = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'staging';
+
+    await expect(
+      Effect.runPromise(Effect.provide(ConfigService, ConfigServiceLive)),
+    ).rejects.toThrow('Invalid NODE_ENV');
+
+    process.env.NODE_ENV = saved;
+  });
 });

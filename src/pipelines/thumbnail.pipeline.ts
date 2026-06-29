@@ -25,19 +25,26 @@ export function extractThumbnail(
 
     yield* Effect.tryPromise({
       try: () =>
-        execa(binary, [
-          '-ss',
-          String(midpoint),
-          '-i',
-          inputPath,
-          '-vframes',
-          '1',
-          '-q:v',
-          '2',
-          thumbPath,
-        ]).then((result) => {
+        execa(
+          binary,
+          [
+            '-ss',
+            String(midpoint),
+            '-i',
+            inputPath,
+            '-vframes',
+            '1',
+            '-q:v',
+            '2',
+            thumbPath,
+          ],
+          { all: true, reject: false },
+        ).then((result) => {
           if (result.exitCode !== 0) {
-            throw Object.assign(new Error('thumbnail failed'), result);
+            throw Object.assign(new Error('thumbnail failed'), {
+              exitCode: result.exitCode,
+              stderr: result.stderr,
+            });
           }
         }),
       catch: (e: unknown) => {

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { Effect, Fiber, Stream } from 'effect';
+import { Duration, Effect, Fiber, Stream } from 'effect';
 import { execa } from 'execa';
 import {
   FFmpegError,
@@ -17,7 +17,6 @@ import type {
 } from '../types/index.js';
 import { RESOLUTION_CONFIGS, RESOLUTIONS } from '../types/index.js';
 import { watchDirectory } from '../utils/chokidar-stream.js';
-import { parseProgressLine } from '../utils/ffmpeg-progress.js';
 
 export function transcodeResolution(
   resolution: Resolution,
@@ -111,7 +110,9 @@ export function transcodeResolution(
       },
     });
 
-    // Wait for all uploads to drain, then interrupt watcher.
+    // Give chokidar's awaitWriteFinish stabilityThreshold (200ms) time to fire
+    // for the last segment(s) before we tear down the watcher.
+    yield* Effect.sleep(Duration.millis(300));
     yield* Fiber.interrupt(watchFiber);
 
     // Upload the per-resolution index.m3u8.
@@ -121,13 +122,13 @@ export function transcodeResolution(
       yield* Effect.promise(() => fs.readFile(m3u8)),
     );
 
-    // Publish progress event.
-    const overallPct = Math.round(
-      Object.values(jobState.progress).reduce(
-        (sum, p) => sum + p.transcodePct,
-        0,
-      ) / RESOLUTIONS.length,
-    );
+    // Count already-completed resolutions (transcodePct=100) + this one finishing.
+    // jobState.progress is updated by the caller after this function returns, so we
+    // add 1 to account for the current resolution completing right now.
+    const completedCount =
+      Object.values(jobState.progress).filter((p) => p.transcodePct === 100)
+        .length + 1;
+    const overallPct = Math.round((completedCount / RESOLUTIONS.length) * 100);
     yield* sns.publish({
       type: 'job.progress',
       jobId: jobState.jobId,

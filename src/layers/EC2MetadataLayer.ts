@@ -21,10 +21,16 @@ function fetchImds(path: string): Effect.Effect<string, EC2MetadataError> {
         method: 'PUT',
         headers: { 'X-aws-ec2-metadata-token-ttl-seconds': TOKEN_TTL },
       });
+      if (!tokenRes.ok) {
+        throw new Error(`IMDS token request failed: HTTP ${tokenRes.status}`);
+      }
       const token = await tokenRes.text();
       const res = await fetch(`${IMDS_BASE}${path}`, {
         headers: { 'X-aws-ec2-metadata-token': token },
       });
+      if (!res.ok) {
+        throw new Error(`IMDS metadata request failed: HTTP ${res.status}`);
+      }
       return res.text();
     },
     catch: (e) => new EC2MetadataError({ field: path, cause: e }),

@@ -56,6 +56,13 @@ export const ConfigServiceLive = Layer.effect(
     const R2_BUCKET_NAME = yield* required('R2_BUCKET_NAME');
     const R2_PUBLIC_BASE_URL = yield* required('R2_PUBLIC_BASE_URL');
 
+    const nodeEnv = process.env.NODE_ENV ?? 'development';
+    if (!(['development', 'test', 'production'] as const).includes(nodeEnv as AppConfig['NODE_ENV'])) {
+      yield* Effect.fail(
+        new ConfigError({ message: `Invalid NODE_ENV: ${nodeEnv}` }),
+      );
+    }
+
     const preset = optionalStr('FFMPEG_PRESET', 'veryfast');
     if (!['ultrafast', 'veryfast', 'medium'].includes(preset)) {
       yield* Effect.fail(
@@ -64,8 +71,7 @@ export const ConfigServiceLive = Layer.effect(
     }
 
     return {
-      NODE_ENV: (process.env.NODE_ENV ??
-        'development') as AppConfig['NODE_ENV'],
+      NODE_ENV: nodeEnv as AppConfig['NODE_ENV'],
       AWS_REGION,
       SQS_QUEUE_URL,
       SQS_VISIBILITY_TIMEOUT_SEC: optionalInt(

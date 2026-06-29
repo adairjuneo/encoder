@@ -31,11 +31,14 @@ export const CostServiceLive = Layer.effect(
       calculateJobCost: (instanceType, startedAt, endedAt) =>
         Effect.tryPromise({
           try: async () => {
+            // Extend lookback by 2h so short jobs capture the most recent
+            // price-history data point (AWS updates prices sparsely, ~30-60min apart).
+            const lookbackMs = 2 * 60 * 60 * 1000;
             const res = await client.send(
               new DescribeSpotPriceHistoryCommand({
                 InstanceTypes: [instanceType as _InstanceType],
                 ProductDescriptions: ['Linux/UNIX'],
-                StartTime: startedAt,
+                StartTime: new Date(startedAt.getTime() - lookbackMs),
                 EndTime: endedAt,
                 MaxResults: 1,
               }),

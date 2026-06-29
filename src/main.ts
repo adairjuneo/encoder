@@ -1,16 +1,19 @@
 import { Effect, Schema } from "effect"
+import pino from "pino"
 import { transcodeJob } from "./pipelines/master.pipeline.js"
 import { SQSService } from "./layers/SQSLayer.js"
 import { JobPayloadSchema } from "./types/index.js"
 import { AppLayer } from "./bootstrap.js"
 import { JobPayloadParseError } from "./errors/index.js"
 
+const logger = pino({ level: process.env.LOG_LEVEL ?? "info" })
+
 const main = Effect.gen(function* () {
   const sqs = yield* SQSService
 
   const message = yield* sqs.receiveMessage()
   if (!message) {
-    console.log("No message received — exiting.")
+    logger.info("No message received — exiting.")
     process.exit(0)
   }
 
@@ -24,10 +27,10 @@ const main = Effect.gen(function* () {
 
 Effect.runPromise(main.pipe(Effect.provide(AppLayer)))
   .then(() => {
-    console.log("Job completed successfully.")
+    logger.info("Job completed successfully.")
     process.exit(0)
   })
   .catch((e) => {
-    console.error("Job failed:", e)
+    logger.error({ err: e }, "Job failed")
     process.exit(1)
   })
